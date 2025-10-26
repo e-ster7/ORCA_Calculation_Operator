@@ -7,9 +7,9 @@ state_file = pipeline_state.json
 
 [orca]
 orca_path = /path/to/orca
-method = B3LYP
-basis = def2-SVP
-solvent = none
+method = CAM-B3LYP D4 
+basis = def2-TZVP
+solvent = Chloroform
 solvent_model = CPCM
 nprocs = 4
 maxcore_mb = 2000
