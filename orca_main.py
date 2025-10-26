@@ -11,7 +11,7 @@ from path_utils import ensure_directory
 import threading
 
 logger = None
-
+#XYZFileHandler クラス: watchdogライブラリの機能（FileSystemEventHandler）を使い、inputフォルダを監視するクラスです。
 class XYZFileHandler(FileSystemEventHandler):
     """Handles new XYZ files in input directory."""
     
@@ -21,7 +21,17 @@ class XYZFileHandler(FileSystemEventHandler):
         self.waiting_dir = Path(config.get('paths', 'waiting_dir'))
         self.processing_lock = threading.Lock()
         ensure_directory(self.waiting_dir)
-    
+#on_created: inputフォルダに新しいファイルが作成されると自動的に呼び出されます。それが.xyzファイルの場合、process_xyz_file メソッドを実行します。
+
+#process_xyz_file: 新しく検知されたXYZファイルを処理します。
+
+#_parse_xyz でXYZファイルの中身（原子座標）を読み取ります。
+
+#_generate_orca_input でORCA用の入力ファイル（.inp）を自動生成します。
+
+#.xyzと.inpファイルを waiting フォルダに移動させます。
+
+#state.add_job を呼び出し、状態管理ファイルに「新しいジョブが追加された」ことを記録します。
     def on_created(self, event):
         """Handle new file creation."""
         if event.is_directory:
@@ -31,7 +41,7 @@ class XYZFileHandler(FileSystemEventHandler):
         
         if file_path.suffix.lower() == '.xyz':
             logger.info(f"Detected new XYZ file: {file_path.name}")
-            time.sleep(0.5)  # Wait for file write completion
+            time.sleep(0.5)  
             self.process_xyz_file(file_path)
     
     def process_xyz_file(self, xyz_file):
@@ -77,8 +87,7 @@ class XYZFileHandler(FileSystemEventHandler):
                 
             except Exception as e:
                 logger.error(f"Error processing {xyz_file}: {e}")
-    
-    def _parse_xyz(self, xyz_file):
+#_parse_xyz: XYZファイルの座標を読み取る関数です。スペースやタブ区切り、大文字/小文字の元素記号、Windows/Linuxの改行コードの違いなど、多少形式が異なっても柔軟に読み取れるように設計されています。    def _parse_xyz(self, xyz_file):
         """Parse XYZ file and extract coordinates."""
         try:
             with open(xyz_file, 'r') as f:
@@ -123,7 +132,7 @@ class XYZFileHandler(FileSystemEventHandler):
         except Exception as e:
             logger.error(f"Error parsing {xyz_file}: {e}")
             return None
-    
+    #_generate_orca_input: config.txt の設定（計算手法、基底関数、並列数、溶媒効果など）と、XYZファイルから読み取った座標を組み合わせて、ORCAが実行可能な入力ファイル（.inp）のテキストを生成します。
     def _generate_orca_input(self, coords, molecule_name, calc_type):
         """Generate ORCA input file from coordinates."""
         method = self.config.get('orca', 'method', fallback='B3LYP')
@@ -179,7 +188,8 @@ class XYZFileHandler(FileSystemEventHandler):
         inp_lines.append("")
         
         return '\n'.join(inp_lines)
-
+#ORCAPipeline クラス: パイプライン全体を管理するクラスです。
+#__init__: 初期化処理。config.txt の読み込み、ロガー（orca_logging）の設定、状態管理（orca_state）、ジョブ管理（orca_job_manager）、通知（orca_notifier）、フォルダ監視（XYZFileHandler）の各コンポーネントを準備します。
 class ORCAPipeline:
     """Main pipeline controller."""
     
@@ -210,7 +220,7 @@ class ORCAPipeline:
         
         self.running = False
         self.job_thread = None
-    
+
     def _ensure_directories(self):
         """Ensure all required directories exist."""
         dirs = [
@@ -225,7 +235,7 @@ class ORCAPipeline:
             ensure_directory(dir_path)
         
         ensure_directory(self.config.get('logging', 'log_dir', fallback='logs'))
-    
+#process_existing_files: プログラム起動時に、inputフォルダに既に入っているXYZファイルがないか確認し、あればすべて処理（process_xyz_file）に回します。    
     def process_existing_files(self):
         """Process any existing XYZ files in input directory at startup."""
         input_dir = Path(self.config.get('paths', 'input_dir'))
@@ -240,7 +250,7 @@ class ORCAPipeline:
                 self.file_handler.process_xyz_file(xyz_file)
         else:
             logger.info("No existing XYZ files found")
-    
+#start: パイプラインを開始します。①既存ファイルの処理、②watchdogによるフォルダ監視の開始、③JobManagerの起動、④ジョブ処理ループ（_job_processing_loop）の開始、を順に行います。    
     def start(self):
         """Start the pipeline."""
         logger.info("=" * 60)
@@ -260,7 +270,7 @@ class ORCAPipeline:
         self.job_thread.start()
         
         logger.info("Pipeline started successfully")
-    
+    #_job_processing_loop: パイプラインが動作している間、バックグラウンドで動き続けるループです。定期的に（例：5秒ごと）state（状態管理ファイル）をチェックし、もし「待機中(queued)」のジョブがあれば、JobManager に計算実行を指示します。
     def _job_processing_loop(self):
         """Continuous job processing loop."""
         check_interval = self.config.getint('execution', 'check_interval_seconds', fallback=5)
@@ -294,7 +304,7 @@ class ORCAPipeline:
             self.job_thread.join(timeout=10)
         
         logger.info("Pipeline stopped")
-    
+#run: 実際にパイプラインを実行し、Ctrl+Cなどで停止信号が来るまで待機します。停止信号を受け取ると stop メソッドを呼び出します。    
     def run(self):
         """Run the pipeline continuously."""
         try:
@@ -312,7 +322,7 @@ class ORCAPipeline:
             self.notifier.notify_fatal_error(str(e))
         finally:
             self.stop()
-
+#if __name__ == "__main__":: このスクリプトが（import ではなく）直接 python orca_main.py として実行されたときに、ORCAPipeline を起動するための決まり文句です。
 if __name__ == "__main__":
     pipeline = ORCAPipeline()
     pipeline.run()
